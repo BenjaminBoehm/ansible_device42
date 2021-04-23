@@ -58,6 +58,10 @@ DOCUMENTATION = r'''
             default: true
             env:
                 - name: D42_CLEAN_DEVICE_NAME
+        preferred_interfaces:
+            description: array with label of the preferred primary ip address.
+            type: list
+            default: []
 '''
 
 EXAMPLES = r'''
@@ -72,6 +76,9 @@ keyed_groups:
     - key: d42_service_level
       prefix: ''
       separator: ''
+preferred_interfaces:
+    - mgmt
+    - app
 '''
 
 
@@ -96,6 +103,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
 
         strict = self.get_option('strict')
 
+        preferred_interfaces = self.get_option('preferred_interfaces')
+
         try:
             try:
                 clean_device_name = self.get_option('clean_device_name')
@@ -119,8 +128,21 @@ class InventoryModule(BaseInventoryPlugin, Constructable, Cacheable):
                 for k in object_.keys():
                     self.inventory.set_variable(host_name, 'd42_' + k, object_[k])
 
+                found_ipaddress = False
+
                 if object_['ip_addresses']:
-                    self.inventory.set_variable(host_name, 'ansible_host', object_['ip_addresses'][0]['ip'])
+                    for preferred_label in preferred_interfaces:
+                        for address in object_['ip_addresses']:
+                            if address['label'] == preferred_label:
+                                self.inventory.set_variable(host_name, 'ansible_host', address['ip'])
+                                found_ipaddress = True
+                                break
+                        else:
+                            continue
+                        break
+
+                    if not found_ipaddress:
+                        self.inventory.set_variable(host_name, 'ansible_host', object_['ip_addresses'][0]['ip'])
 
                 self._set_composite_vars(
                     self.get_option('compose'),
